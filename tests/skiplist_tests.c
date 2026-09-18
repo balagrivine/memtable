@@ -6,6 +6,59 @@
 
 #include "../skiplist.h"
 
+/*
+ * op_type represents the type of operation
+ */
+typedef enum op_type {
+    put = 0x00,
+    delete = 0x01,
+} op_type;
+
+static inline void encode_be64(const uint64_t value, uint8_t* out) {
+    out[0] = (uint8_t)(value >> 56);
+    out[1] = (uint8_t)(value >> 48);
+    out[2] = (uint8_t)(value >> 40);
+    out[3] = (uint8_t)(value >> 32);
+    out[4] = (uint8_t)(value >> 24);
+    out[5] = (uint8_t)(value >> 16);
+    out[6] = (uint8_t)(value >> 8);
+    out[7] = (uint8_t)value;
+}
+
+static inline uint64_t decode_be64(const uint8_t* p) {
+    return ((uint64_t)p[0] << 56) | ((uint64_t)p[1] << 48) | ((uint64_t)p[2] << 40) |
+           ((uint64_t)p[3] << 32) | ((uint64_t)p[4] << 24) | ((uint64_t)p[5] << 16) |
+           ((uint64_t)p[6] << 8) | (uint64_t)p[7];
+}
+
+static int encode_internal_key(const uint8_t* key, size_t key_size, uint64_t sequence, op_type type,
+                               uint8_t* out) {
+    if (!key || key_size == 0 || sequence == 0) return -1;
+
+    memcpy(out, key, key_size);
+
+    encode_be64(sequence, out + key_size);
+
+    out[key_size + sizeof(uint64_t)] = type;
+
+    return 0;
+}
+
+static int decode_internal_key(uint8_t* internal_key, size_t internal_key_size, uint8_t** key,
+                               uint32_t* key_size, op_type* type, uint64_t* sequence) {
+    if (!internal_key || internal_key_size == 0 || !key) return -1;
+
+    *key_size = internal_key_size - sizeof(uint64_t) - sizeof(op_type);
+
+    *key = internal_key;
+
+    *sequence = decode_be64(internal_key + *key_size);
+
+    *type = internal_key[*key_size + sizeof(uint64_t)];
+
+    return 0;
+}
+
 static inline int generate_random_level(float probability, int max_level) {
     int level = 1;
 
@@ -67,9 +120,14 @@ void test_skiplist_create_node() {
     int is_delete = 0;
     int level = generate_random_level(probability, max_level);
 
+    uint64_t internal_key_size = strlen((char*)key) + sizeof(uint64_t) + sizeof(op_type);
+    uint8_t internal_key[internal_key_size];
+
+    encode_internal_key(key, strlen((char*)key), sequence, put, internal_key);
+
     assert(skiplist_new(&list, probability, max_level, skiplist_compare_keys) == 0);
 
-    skiplist_node_t* node = skiplist_create_node(list, key, strlen((char*)key), value,
+    skiplist_node_t* node = skiplist_create_node(list, internal_key, internal_key_size, value,
                                                  strlen((char*)value), sequence, level, is_delete);
 
     assert(node != NULL);
@@ -80,8 +138,18 @@ void test_skiplist_create_node() {
     }
 
     assert(fwd_pointer_count == level);
-    assert(memcmp(node->key, key, node->key_size) == 0);
     assert(memcmp(node->value, value, node->value_size) == 0);
+
+    uint8_t* decoded_key;
+    uint32_t key_size = 0;
+    op_type type = 0;
+    uint64_t decoded_sequence = 0;
+    decode_internal_key(node->key, node->key_size, &decoded_key, &key_size, &type,
+                        &decoded_sequence);
+
+    assert(memcmp(key, decoded_key, key_size) == 0);
+    assert(decoded_sequence == sequence);
+    assert(type == put);
 
     is_delete = 1;
     node = skiplist_create_node(list, key, strlen((char*)key), value, strlen((char*)value),
