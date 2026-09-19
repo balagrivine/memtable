@@ -69,18 +69,34 @@ static inline int generate_random_level(float probability, int max_level) {
     return level;
 }
 
-static int skiplist_compare_keys(const uint8_t* key_a, uint32_t key_a_size, const uint8_t* key_b,
-                                 uint32_t key_b_size) {
-    if (!key_a || !key_b || key_a_size == 0 || key_b_size == 0) return 0;
+static int skiplist_compare_keys(uint8_t* internal_key_a, uint32_t internal_key_a_size,
+                                 uint8_t* internal_key_b, uint32_t internal_key_b_size) {
+    if (!internal_key_a || !internal_key_b || internal_key_a_size == 0 || internal_key_b_size == 0)
+        return 0;
 
-    uint32_t min = key_a_size < key_b_size ? key_a_size : key_b_size;
+    uint8_t *user_key_a, *user_key_b;
+    uint32_t user_key_a_size, user_key_b_size;
+    uint64_t user_key_a_sequence, user_key_b_sequence;
+    op_type op_type;
 
-    int cmp = memcmp(key_a, key_b, min);
+    decode_internal_key(internal_key_a, (size_t)internal_key_a_size, &user_key_a, &user_key_a_size,
+                        &op_type, &user_key_a_sequence);
+
+    decode_internal_key(internal_key_b, (size_t)internal_key_b_size, &user_key_b, &user_key_b_size,
+                        &op_type, &user_key_b_sequence);
+
+    uint32_t min = user_key_a_size < user_key_b_size ? user_key_a_size : user_key_b_size;
+
+    int cmp = memcmp(user_key_a, user_key_b, min);
     if (cmp != 0) return cmp;
 
-    if (key_a_size < key_b_size) return -1;
+    if (cmp == 0) {
+        return user_key_a_sequence < user_key_b_sequence ? -1 : 1;
+    }
 
-    if (key_a_size > key_b_size) return 1;
+    if (user_key_a_size < user_key_b_size) return -1;
+
+    if (user_key_a_size > user_key_b_size) return 1;
 
     return 0;
 }
@@ -167,21 +183,29 @@ void test_skiplist_put() {
     uint8_t* key = (uint8_t*)"key";
     uint8_t* value = (uint8_t*)"value";
     uint8_t flags = 0;
+    int sequence = 1;
 
     assert(skiplist_new(&list, probability, max_level, skiplist_compare_keys) == 0);
 
-    assert(skiplist_put(list, key, strlen((char*)key), value, strlen((char*)value), flags) == 0);
+    uint64_t internal_key_size = strlen((char*)key) + sizeof(uint64_t) + sizeof(op_type);
+    uint8_t internal_key[internal_key_size];
+
+    encode_internal_key(key, strlen((char*)key), sequence, put, internal_key);
+
+    assert(skiplist_put(list, internal_key, internal_key_size, value, strlen((char*)value),
+                        flags) == 0);
 
     uint8_t* ret_value = NULL;
     uint32_t value_size;
 
-    assert(skiplist_get(list, key, strlen((char*)key), &ret_value, &value_size) == 0);
+    assert(skiplist_get(list, internal_key, internal_key_size, &ret_value, &value_size) == 0);
     assert(memcmp(value, ret_value, value_size) == 0);
 
     ret_value = NULL;
-    assert(skiplist_put(list, key, strlen((char*)key), value, strlen((char*)value), flags) == 0);
+    assert(skiplist_put(list, internal_key, internal_key_size, value, strlen((char*)value),
+                        flags) == 0);
 
-    assert(skiplist_get(list, key, strlen((char*)key), &ret_value, &value_size) == 0);
+    assert(skiplist_get(list, internal_key, internal_key_size, &ret_value, &value_size) == 0);
     assert(memcmp(value, ret_value, value_size) == 0);
 
     int total_nodes = 0;
@@ -201,21 +225,32 @@ void test_skiplist_get() {
     uint8_t* key = (uint8_t*)"key";
     uint8_t* value = (uint8_t*)"value";
     uint8_t flags = 0;
+    int sequence = 1;
 
     assert(skiplist_new(&list, probability, max_level, skiplist_compare_keys) == 0);
 
-    assert(skiplist_put(list, key, strlen((char*)key), value, strlen((char*)value), flags) == 0);
+    uint64_t internal_key_size = strlen((char*)key) + sizeof(uint64_t) + sizeof(op_type);
+    uint8_t internal_key[internal_key_size];
+
+    encode_internal_key(key, strlen((char*)key), sequence, put, internal_key);
+    assert(skiplist_put(list, internal_key, internal_key_size, value, strlen((char*)value),
+                        flags) == 0);
 
     uint8_t* ret_value = NULL;
     uint32_t value_size;
 
-    assert(skiplist_get(list, key, strlen((char*)key), &ret_value, &value_size) == 0);
+    assert(skiplist_get(list, internal_key, internal_key_size, &ret_value, &value_size) == 0);
     assert(memcmp(value, ret_value, value_size) == 0);
 
     key = (uint8_t*)"non_existent";
     ret_value = NULL;
 
-    assert(skiplist_get(list, key, strlen((char*)key), &ret_value, &value_size) ==
+    internal_key_size = strlen((char*)key) + sizeof(uint64_t) + sizeof(op_type);
+    uint8_t internal_key1[internal_key_size];
+
+    encode_internal_key(key, strlen((char*)key), sequence, put, internal_key1);
+
+    assert(skiplist_get(list, internal_key1, internal_key_size, &ret_value, &value_size) ==
            SKIPLIST_ERR_NOT_FOUND);
 }
 
