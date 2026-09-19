@@ -47,10 +47,9 @@ int skiplist_new(skiplist_t** list, float probability, int max_level,
 }
 
 skiplist_node_t* skiplist_create_node(skiplist_t* list, uint8_t* key, uint32_t key_size,
-                                      uint8_t* value, uint32_t value_size, uint64_t sequence,
-                                      int level, uint8_t flags) {
-    if (!list || !key || key_size == 0 || !value || value_size == 0 || sequence == 0 ||
-        level == 0) {
+                                      uint8_t* value, uint32_t value_size, int level,
+                                      uint8_t flags) {
+    if (!list || !key || key_size == 0 || !value || value_size == 0 || level == 0) {
         return NULL;
     }
 
@@ -72,7 +71,6 @@ skiplist_node_t* skiplist_create_node(skiplist_t* list, uint8_t* key, uint32_t k
     memcpy(key_buffer, key, key_size);
     node->key = key;
     node->key_size = key_size;
-    node->sequence = sequence;
     node->flags = flags;
 
     if (flags & IS_TOMBSTONE) {
@@ -97,9 +95,7 @@ skiplist_node_t* skiplist_create_node(skiplist_t* list, uint8_t* key, uint32_t k
 }
 
 skiplist_node_t* skiplist_get_predecesor(skiplist_t* list, uint8_t* key, uint32_t key_size,
-                                         uint64_t sequence, skiplist_node_t** update) {
-    (void)sequence;
-
+                                         skiplist_node_t** update) {
     if (!list || !key || key_size == 0) {
         return NULL;
     }
@@ -119,12 +115,12 @@ skiplist_node_t* skiplist_get_predecesor(skiplist_t* list, uint8_t* key, uint32_
 }
 
 int skiplist_get(skiplist_t* list, uint8_t* key, uint32_t key_size, uint8_t** value,
-                 uint32_t* value_size, uint64_t sequence) {
-    if (!list || !key || key_size == 0 || !value || sequence == 0) {
+                 uint32_t* value_size) {
+    if (!list || !key || key_size == 0 || !value) {
         return -1;
     }
 
-    skiplist_node_t* pred = skiplist_get_predecesor(list, key, key_size, sequence, NULL);
+    skiplist_node_t* pred = skiplist_get_predecesor(list, key, key_size, NULL);
     if (!pred) {
         *value = NULL;
         return -1;
@@ -135,7 +131,7 @@ int skiplist_get(skiplist_t* list, uint8_t* key, uint32_t key_size, uint8_t** va
         return SKIPLIST_ERR_NOT_FOUND;
     }
 
-    if (memcmp(target->key, key, key_size) == 0 && target->sequence == sequence) {
+    if (memcmp(target->key, key, key_size) == 0) {
         uint8_t* value_bufer = (uint8_t*)malloc(target->value_size);
         if (!value_bufer) return -1;
 
@@ -148,14 +144,14 @@ int skiplist_get(skiplist_t* list, uint8_t* key, uint32_t key_size, uint8_t** va
 }
 
 int skiplist_put(skiplist_t* list, uint8_t* key, uint32_t key_size, uint8_t* value,
-                 uint32_t value_size, uint64_t sequence, uint8_t flags) {
-    if (!list || !key || key_size == 0 || !value || value_size == 0 || sequence == 0) {
+                 uint32_t value_size, uint8_t flags) {
+    if (!list || !key || key_size == 0 || !value || value_size == 0) {
         return -1;
     }
 
     skiplist_node_t* update[list->max_level];
 
-    skiplist_node_t* pred = skiplist_get_predecesor(list, key, key_size, sequence, update);
+    skiplist_node_t* pred = skiplist_get_predecesor(list, key, key_size, update);
     if (!pred) return -1;
 
     int node_level = generate_random_level(list->probability, list->max_level);
@@ -168,8 +164,8 @@ int skiplist_put(skiplist_t* list, uint8_t* key, uint32_t key_size, uint8_t* val
         list->current_level = node_level;
     }
 
-    skiplist_node_t* new_node = skiplist_create_node(list, key, key_size, value, value_size,
-                                                     sequence, node_level, flags);
+    skiplist_node_t* new_node =
+            skiplist_create_node(list, key, key_size, value, value_size, node_level, flags);
     if (!new_node) return -1;
 
     for (int i = 0; i < list->current_level; i++) {
