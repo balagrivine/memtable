@@ -12,7 +12,6 @@
  * @param value_size size of the value in this node
  * @param value the value in bytes
  * @param key the key in bytes
- * @param sequence sequence number of the inserted key-value pir for MVCC
  */
 typedef struct skiplist_node_t {
     uint8_t flags;
@@ -20,7 +19,6 @@ typedef struct skiplist_node_t {
     uint32_t value_size;
     uint8_t* value;
     uint8_t* key;
-    uint64_t sequence;
     struct skiplist_node_t* forward[];
 } skiplist_node_t;
 
@@ -46,16 +44,16 @@ int skiplist_new(skiplist_t** list, float probability, int max_level,
                  int (*comparator_fn)(const uint8_t*, uint32_t, const uint8_t*, uint32_t));
 
 skiplist_node_t* skiplist_create_node(skiplist_t* list, uint8_t* key, uint32_t key_size,
-                                      uint8_t* value, uint32_t value_size, uint64_t sequence,
-                                      int level, uint8_t flags);
+                                      uint8_t* value, uint32_t value_size, int level,
+                                      uint8_t flags);
 
 int skiplist_get(skiplist_t* list, uint8_t* key, uint32_t key_size, uint8_t** value,
-                 uint32_t* value_size, uint64_t sequence);
+                 uint32_t* value_size);
 
 int skiplist_put(skiplist_t* list, uint8_t* key, uint32_t key_size, uint8_t* value,
-                 uint32_t value_size, uint64_t sequence, uint8_t flags);
+                 uint32_t value_size, uint8_t flags);
 
-int skiplist_delete(skiplist_t* list, uint8_t* key, uint32_t value, uint64_t sequence);
+int skiplist_delete(skiplist_t* list, uint8_t* key, uint32_t value);
 
 skiplist_node_t* skiplist_get_predecesor(skiplist_t* list, uint8_t* key, uint32_t key_size,
-                                         uint64_t sequence, skiplist_node_t** update);
+                                         skiplist_node_t** update);
