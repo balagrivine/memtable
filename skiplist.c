@@ -15,7 +15,7 @@ static inline int generate_random_level(float probability, int max_level) {
 }
 
 int skiplist_new(skiplist_t** list, float probability, int max_level,
-                 int (*comparator)(const uint8_t*, uint32_t, const uint8_t*, uint32_t)) {
+                 int (*comparator)(uint8_t*, uint32_t, uint8_t*, uint32_t)) {
     if (!list || probability <= 0.0f || probability >= 1.0f || max_level == 0 || !comparator) {
         return -1;
     }
