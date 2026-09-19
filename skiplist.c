@@ -69,7 +69,7 @@ skiplist_node_t* skiplist_create_node(skiplist_t* list, uint8_t* key, uint32_t k
     }
 
     memcpy(key_buffer, key, key_size);
-    node->key = key;
+    node->key = key_buffer;
     node->key_size = key_size;
     node->flags = flags;
 
@@ -79,15 +79,15 @@ skiplist_node_t* skiplist_create_node(skiplist_t* list, uint8_t* key, uint32_t k
     } else {
         uint8_t* value_buffer = (uint8_t*)malloc((size_t)value_size);
         if (!value_buffer) {
-            free(node);
             free(key_buffer);
+            free(node);
 
             return NULL;
         }
 
         memcpy(value_buffer, value, value_size);
 
-        node->value = value;
+        node->value = value_buffer;
         node->value_size = value_size;
     }
 
@@ -116,7 +116,7 @@ skiplist_node_t* skiplist_get_predecesor(skiplist_t* list, uint8_t* key, uint32_
 
 int skiplist_get(skiplist_t* list, uint8_t* key, uint32_t key_size, uint8_t** value,
                  uint32_t* value_size) {
-    if (!list || !key || key_size == 0 || !value) {
+    if (!list || !key || key_size == 0 || !value || !value_size) {
         return -1;
     }
 
@@ -128,19 +128,24 @@ int skiplist_get(skiplist_t* list, uint8_t* key, uint32_t key_size, uint8_t** va
 
     skiplist_node_t* target = pred->forward[0];
     if (!target || target->flags & IS_TOMBSTONE) {
+        *value = NULL;
         return SKIPLIST_ERR_NOT_FOUND;
     }
 
-    if (memcmp(target->key, key, key_size) == 0) {
+    if (list->compare_keys(target->key, target->key_size, key, key_size) == 0) {
         uint8_t* value_bufer = (uint8_t*)malloc(target->value_size);
         if (!value_bufer) return -1;
 
         memcpy(value_bufer, target->value, target->value_size);
         *value = value_bufer;
         *value_size = target->value_size;
+
+        return 0;
     }
 
-    return 0;
+    *value = NULL;
+
+    return SKIPLIST_ERR_NOT_FOUND;
 }
 
 int skiplist_put(skiplist_t* list, uint8_t* key, uint32_t key_size, uint8_t* value,
@@ -168,7 +173,7 @@ int skiplist_put(skiplist_t* list, uint8_t* key, uint32_t key_size, uint8_t* val
             skiplist_create_node(list, key, key_size, value, value_size, node_level, flags);
     if (!new_node) return -1;
 
-    for (int i = 0; i < list->current_level; i++) {
+    for (int i = 0; i < node_level; i++) {
         new_node->forward[i] = update[i]->forward[i];
         update[i]->forward[i] = new_node;
     }

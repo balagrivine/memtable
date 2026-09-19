@@ -11,3 +11,8 @@ Key's are never deleted / over-written in-place. Instead, deletions insert a sen
 ```shell
 gcc -Wall -Wextra -fsanitize=address,undefined skiplist.c tests/skiplist_tests.c -o test && ./test
 ```
+
+### Running benchmarks
+```shell
+gcc -Wall -Wextra -fsanitize=address,undefined skiplist.c bench/bench.c -o bench/bench
+```
