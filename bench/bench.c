@@ -1,48 +1,97 @@
-#include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
 
 #include "../skiplist.h"
 
-#define SKIPLIST_PUT_OPS 10000000
+#define DEFAULT_PUT_OPS 100000
+#define KEY_SIZE 10
+#define VALUE_SIZE 20
+
+/*
+ * Fixed seeds keep runs comparable. A benchmark you cannot diff against the
+ * previous run cannot tell you whether a change helped.
+ */
+#define RNG_SEED 0x2545f4914f6cdd1dULL
+#define LIBC_SEED 1
+
+static const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+#define CHARSET_SIZE (sizeof(charset) - 1)
 
 skiplist_t* list;
 
-static void generate_random_key_value(uint8_t* key, uint8_t* value, int key_size, int value_size) {
-    const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    int charset_size = sizeof(charset) - 1;
+static uint64_t rng_state = RNG_SEED;
 
-    for (int i = 0; i < key_size; i++) {
-        int k = rand() % charset_size;
-        key[i] = charset[k];
-    }
+static inline uint64_t xorshift64(void) {
+    uint64_t x = rng_state;
 
-    for (int i = 0; i < value_size; i++) {
-        int k = rand() % charset_size;
-        value[i] = charset[k];
-    }
+    x ^= x << 13;
+    x ^= x >> 7;
+    x ^= x << 17;
 
-    key[key_size] = '\0';
-    value[value_size] = '\0';
+    return rng_state = x;
 }
 
-void bench_skiplist_put() {
-    assert(list != NULL);
+static double now_seconds(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
 
-    int key_size = 10, value_size = 20, rc = 0;
-    uint8_t key[key_size + 1], value[value_size + 1];
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
 
-    generate_random_key_value(key, value, key_size, value_size);
+/*
+ * Keys and values live in two flat buffers generated before the timed region,
+ * so the profile attributes samples to skiplist_put rather than to the harness
+ * PRNG. Sizes are passed explicitly, so no NUL terminator is needed.
+ */
+static int generate_workload(long ops, uint8_t** keys, uint8_t** values) {
+    uint8_t* key_buffer = (uint8_t*)malloc((size_t)ops * KEY_SIZE);
+    if (!key_buffer) return -1;
 
-    for (int i = 0; i < SKIPLIST_PUT_OPS; i++) {
-        rc = skiplist_put(list, key, key_size, value, value_size, 0);
+    uint8_t* value_buffer = (uint8_t*)malloc((size_t)ops * VALUE_SIZE);
+    if (!value_buffer) {
+        free(key_buffer);
+        return -1;
+    }
+
+    for (size_t i = 0; i < (size_t)ops * KEY_SIZE; i++) {
+        key_buffer[i] = (uint8_t)charset[xorshift64() % CHARSET_SIZE];
+    }
+
+    for (size_t i = 0; i < (size_t)ops * VALUE_SIZE; i++) {
+        value_buffer[i] = (uint8_t)charset[xorshift64() % CHARSET_SIZE];
+    }
+
+    *keys = key_buffer;
+    *values = value_buffer;
+
+    return 0;
+}
+
+static int bench_skiplist_put(long ops, uint8_t* keys, uint8_t* values) {
+    int rc = 0;
+
+    double start = now_seconds();
+
+    for (long i = 0; i < ops; i++) {
+        rc = skiplist_put(list, keys + i * KEY_SIZE, KEY_SIZE, values + i * VALUE_SIZE, VALUE_SIZE,
+                          0);
         if (rc != 0) break;
     }
 
-    printf("Completed skiplist benchmark operations with return code: %d\n", rc);
+    double elapsed = now_seconds() - start;
+
+    if (rc != 0) {
+        fprintf(stderr, "skiplist_put failed with return code %d\n", rc);
+        return rc;
+    }
+
+    printf("put     ops=%ld  elapsed=%.3fs  %.1f ns/op  %.0f ops/sec\n", ops, elapsed,
+           elapsed * 1e9 / (double)ops, (double)ops / elapsed);
+
+    return 0;
 }
 
 int bench_comparator(uint8_t* key_a, uint32_t key_a_size, uint8_t* key_b, uint32_t key_b_size) {
@@ -58,13 +107,38 @@ int bench_comparator(uint8_t* key_a, uint32_t key_a_size, uint8_t* key_b, uint32
     return 0;
 }
 
-int main(void) {
-    srand(time(NULL));
+int main(int argc, char** argv) {
+    long ops = DEFAULT_PUT_OPS;
+
+    if (argc > 1) {
+        ops = strtol(argv[1], NULL, 10);
+        if (ops <= 0) {
+            fprintf(stderr, "usage: %s [num_ops]\n", argv[0]);
+            return 1;
+        }
+    }
+
+    /* skiplist.c still draws its node levels from rand(), so seed it too. */
+    srand(LIBC_SEED);
 
     float probability = 0.5;
     int max_level = 16;
 
-    assert(skiplist_new(&list, probability, max_level, bench_comparator) == 0);
+    if (skiplist_new(&list, probability, max_level, bench_comparator) != 0) {
+        fprintf(stderr, "skiplist_new failed\n");
+        return 1;
+    }
 
-    bench_skiplist_put();
+    uint8_t *keys = NULL, *values = NULL;
+    if (generate_workload(ops, &keys, &values) != 0) {
+        fprintf(stderr, "failed to allocate workload for %ld ops\n", ops);
+        return 1;
+    }
+
+    int rc = bench_skiplist_put(ops, keys, values);
+
+    free(keys);
+    free(values);
+
+    return rc == 0 ? 0 : 1;
 }

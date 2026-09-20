@@ -1,0 +1,14 @@
+# build output
+bench/bench
+bench/bench-asan
+tests/test
+test
+*.dSYM/
+*.o
+
+# profiling output
+bench/profile-out/
+perf.data*
+callgrind.out.*
+cachegrind.out.*
+dhat.out*
