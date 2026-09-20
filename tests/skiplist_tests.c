@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -90,13 +91,9 @@ static int skiplist_compare_keys(uint8_t* internal_key_a, uint32_t internal_key_
     int cmp = memcmp(user_key_a, user_key_b, min);
     if (cmp != 0) return cmp;
 
-    if (cmp == 0) {
-        return user_key_a_sequence < user_key_b_sequence ? -1 : 1;
-    }
+    if (user_key_a_size < user_key_b_size || user_key_a_sequence < user_key_b_sequence) return -1;
 
-    if (user_key_a_size < user_key_b_size) return -1;
-
-    if (user_key_a_size > user_key_b_size) return 1;
+    if (user_key_a_size > user_key_b_size || user_key_a_sequence > user_key_b_sequence) return 1;
 
     return 0;
 }
