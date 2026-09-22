@@ -171,6 +171,9 @@ void test_skiplist_create_node() {
     assert(node->flags & IS_TOMBSTONE);
     assert(node->value == NULL);
     assert(node->value_size == 0);
+
+    assert(skiplist_destroy(&list) == 0);
+    assert(list == NULL);
 }
 
 void test_skiplist_put() {
@@ -213,6 +216,9 @@ void test_skiplist_put() {
     }
 
     assert(total_nodes == 2);
+
+    assert(skiplist_destroy(&list) == 0);
+    assert(list == NULL);
 }
 
 void test_skiplist_get() {
@@ -249,6 +255,9 @@ void test_skiplist_get() {
 
     assert(skiplist_get(list, internal_key1, internal_key_size, &ret_value, &value_size) ==
            SKIPLIST_ERR_NOT_FOUND);
+
+    assert(skiplist_destroy(&list) == 0);
+    assert(list == NULL);
 }
 
 int main(void) {
