@@ -57,3 +57,5 @@ int skiplist_delete(skiplist_t* list, uint8_t* key, uint32_t value);
 
 skiplist_node_t* skiplist_get_predecesor(skiplist_t* list, uint8_t* key, uint32_t key_size,
                                          skiplist_node_t** update);
+
+int skiplist_destroy(skiplist_t** list);

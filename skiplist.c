@@ -49,7 +49,7 @@ int skiplist_new(skiplist_t** list, float probability, int max_level,
 skiplist_node_t* skiplist_create_node(skiplist_t* list, uint8_t* key, uint32_t key_size,
                                       uint8_t* value, uint32_t value_size, int level,
                                       uint8_t flags) {
-    if (!list || !key || key_size == 0 || !value || value_size == 0 || level == 0) {
+    if (!list || !key || key_size == 0 || level == 0) {
         return NULL;
     }
 
@@ -150,7 +150,7 @@ int skiplist_get(skiplist_t* list, uint8_t* key, uint32_t key_size, uint8_t** va
 
 int skiplist_put(skiplist_t* list, uint8_t* key, uint32_t key_size, uint8_t* value,
                  uint32_t value_size, uint8_t flags) {
-    if (!list || !key || key_size == 0 || !value || value_size == 0) {
+    if (!list || !key || key_size == 0) {
         return -1;
     }
 
@@ -177,6 +177,29 @@ int skiplist_put(skiplist_t* list, uint8_t* key, uint32_t key_size, uint8_t* val
         new_node->forward[i] = update[i]->forward[i];
         update[i]->forward[i] = new_node;
     }
+
+    return 0;
+}
+
+int skiplist_destroy(skiplist_t** list) {
+    if (!list || !*list) {
+        return -1;
+    }
+
+    skiplist_node_t* head = (*list)->head;
+    skiplist_node_t* current = head->forward[0];
+
+    while (current != NULL) {
+        skiplist_node_t* next = current->forward[0];
+
+        free(current->key);
+        free(current->value);
+
+        current = next;
+    }
+
+    free(*list);
+    (*list) = NULL;
 
     return 0;
 }
