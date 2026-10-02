@@ -14,6 +14,13 @@ static inline int generate_random_level(float probability, int max_level) {
     return level;
 }
 
+static inline size_t skiplist_calculate_node_size(uint32_t key_size, uint32_t value_size,
+                                                  int level) {
+    size_t node_size = sizeof(skiplist_node_t) + (level * sizeof(skiplist_node_t));
+
+    return node_size + key_size + value_size;
+}
+
 int skiplist_new(skiplist_t** list, float probability, int max_level,
                  int (*comparator)(uint8_t*, uint32_t, uint8_t*, uint32_t)) {
     if (!list || probability <= 0.0f || probability >= 1.0f || max_level == 0 || !comparator) {
@@ -35,6 +42,7 @@ int skiplist_new(skiplist_t** list, float probability, int max_level,
         head->forward[i] = NULL;
     }
 
+    new_list->data_size = node_size;
     new_list->head = head;
     new_list->current_level = 1;
     new_list->probability = probability;
@@ -178,7 +186,15 @@ int skiplist_put(skiplist_t* list, uint8_t* key, uint32_t key_size, uint8_t* val
         update[i]->forward[i] = new_node;
     }
 
+    list->data_size += skiplist_calculate_node_size(key_size, value_size, node_level);
+
     return 0;
+}
+
+size_t skiplist_size(skiplist_t* list) {
+    if (!list) return 0;
+
+    return list->data_size;
 }
 
 int skiplist_destroy(skiplist_t** list) {

@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdio.h>
 
 #define IS_TOMBSTONE 0x01
 
@@ -25,6 +26,7 @@ typedef struct skiplist_node_t {
 /*
  * skiplist_t
  * the actual skiplist
+ * @param data_bytes returns size of data(key-value pair) + total allocated node size
  * @param current_level the current maximum active level in the list
  * @param max_level the maximum level to cap new node promotion to higher levels
  * @param probability a flip-coin probability to determine whether a node gets promoted to a higher
@@ -33,6 +35,7 @@ typedef struct skiplist_node_t {
  * @param comparator_fn the custom comparator used to lexographically compare keys
  */
 typedef struct skiplist_t {
+    size_t data_size;
     int current_level;
     int max_level;
     float probability;
@@ -57,5 +60,7 @@ int skiplist_delete(skiplist_t* list, uint8_t* key, uint32_t value);
 
 skiplist_node_t* skiplist_get_predecesor(skiplist_t* list, uint8_t* key, uint32_t key_size,
                                          skiplist_node_t** update);
+
+size_t skiplist_size(skiplist_t* list);
 
 int skiplist_destroy(skiplist_t** list);

@@ -3,6 +3,8 @@
 
 #include "skiplist.h"
 
+#define MEMTABLE_SIZE_THRESHOLD (64UL * 1024UL * 1024UL) /* 64mb size threshold */
+
 /*
  * op_type represents the type of operation
  */
