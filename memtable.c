@@ -132,3 +132,9 @@ int memtable_delete(memtable_t* memtable, memtable_entry_t* entry) {
     return (skiplist_put(memtable->skiplist, internal_key, internal_key_size, NULL, 0,
                          IS_TOMBSTONE) != 0);
 }
+
+int memtable_exceeds_size_threashold(memtable_t* memtable) {
+    if (!memtable) return 0;
+
+    return skiplist_size(memtable->skiplist) >= MEMTABLE_SIZE_THRESHOLD;
+}
